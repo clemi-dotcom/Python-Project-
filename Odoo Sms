@@ -4,3 +4,6 @@ git commit -m "Initial commit"
 git branch -M main
 git remote add origin https://github.com/clemi-dotcom/Python-Project-.git
 git push -u origin main
+git add requirements.txt
+git commit -m "Add missing dependencies"
+git push
