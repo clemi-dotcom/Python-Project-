@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: odoo-sms-integration
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: gunicorn app:app
+    plan: free
+    region: oregon  # Virginia is not a valid region; use 'oregon' or 'frankfurt'
+    branch: main
+    healthCheckPath: /
