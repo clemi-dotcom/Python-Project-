@@ -1,59 +1,65 @@
-from flask import Flask, request, Response
-import os
+from flask import Flask, request
+from twilio.twiml.messaging_response import MessagingResponse
 import xmlrpc.client
+import os
+import logging
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-# Load Odoo credentials from environment variables
+# Get Odoo credentials from environment variables
 ODOO_URL = os.getenv("ODOO_URL")
 ODOO_DB = os.getenv("ODOO_DB")
 ODOO_USERNAME = os.getenv("ODOO_USERNAME")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
 
-# Authenticate with Odoo
-common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, {})
-
-models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
-
+@app.route("/")
+def home():
+    return "Flask app is running!"
 
 @app.route("/sms", methods=["POST"])
 def sms_reply():
-    from_number = request.form.get("From")
-    message_body = request.form.get("Body")
+    try:
+        # Get incoming message and number
+        message_body = request.form.get('Body', '')
+        from_number = request.form.get('From', '')
+        logging.info(f"Received SMS from {from_number}: {message_body}")
 
-    print(f"SMS received from {from_number}: {message_body}")
+        if not all([ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD]):
+            logging.error("Missing one or more Odoo environment variables.")
+            resp = MessagingResponse()
+            resp.message("Server configuration error. Please try again later.")
+            return str(resp)
 
-    # Create Helpdesk ticket in Odoo
-    if uid:
-        try:
-            ticket_id = models.execute_kw(
-                ODOO_DB,
-                uid,
-                ODOO_PASSWORD,
-                "helpdesk.ticket",
-                "create",
-                [{
-                    "name": f"SMS from {from_number}",
-                    "description": message_body,
-                    "partner_phone": from_number,
-                }]
-            )
-            print(f"Ticket created with ID: {ticket_id}")
-        except Exception as e:
-            print("Error creating ticket:", str(e))
-    else:
-        print("Failed to authenticate with Odoo")
+        # Connect to Odoo
+        common = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/common')
+        uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, {})
+        models = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/object')
 
-    # Respond to Twilio with simple message
-    response = """<?xml version="1.0" encoding="UTF-8"?>
-    <Response>
-        <Message>Thanks! We've received your message.</Message>
-    </Response>"""
+        # Create Helpdesk Ticket
+        ticket_id = models.execute_kw(
+            ODOO_DB, uid, ODOO_PASSWORD,
+            'helpdesk.ticket', 'create',
+            [{
+                'name': f'SMS from {from_number}',
+                'description': message_body,
+                'partner_phone': from_number,
+                'team_id': 4  # Replace with your actual Helpdesk team ID
+            }]
+        )
 
-    return Response(response, mimetype="text/xml")
+        logging.info(f"Created Helpdesk ticket ID: {ticket_id}")
 
+        # Twilio Response
+        resp = MessagingResponse()
+        resp.message("Thanks! We've opened a support ticket.")
+
+    except Exception as e:
+        logging.exception("Error processing incoming SMS.")
+        resp = MessagingResponse()
+        resp.message("Something went wrong while processing your message.")
+
+    return str(resp)
 
 if __name__ == "__main__":
     app.run(debug=True)
-
