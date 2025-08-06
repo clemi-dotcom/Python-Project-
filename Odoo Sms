@@ -1,9 +1,20 @@
 git init
+
+# Add all existing files (only needed the first time)
 git add .
 git commit -m "Initial commit"
+
+# Set main branch and connect to GitHub
 git branch -M main
 git remote add origin https://github.com/clemi-dotcom/Python-Project-.git
 git push -u origin main
+
+# Add the requirements file (if you hadn't already)
 git add requirements.txt
 git commit -m "Add missing dependencies"
+git push
+
+# Add the updated app.py file with Odoo + Twilio integration
+git add app.py
+git commit -m "Add Odoo ticket creation from Twilio SMS"
 git push
