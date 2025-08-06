@@ -85,16 +85,17 @@ def sms_reply():
                     encoded_data = base64.b64encode(image_data).decode('utf-8')
                     filename = f'sms_attachment_{i}.{media_type.split("/")[-1]}'
 
-                    models.execute_kw(
-                        ODOO_DB, uid, ODOO_PASSWORD,
-                        'ir.attachment', 'create',
-                        [{
-                            'name': filename,
-                            'datas': encoded_data,
-                            'datas_fname': filename,
-                            'res_model': 'helpdesk.ticket',
-                            'res_id': ticket_id,
-                            'mimetype': media_type,
+                    attachment_id = models.execute_kw(
+    db, uid, password,
+    'ir.attachment', 'create',
+    [{
+        'name': filename,  # ✔️ Correct field
+        'type': 'binary',
+        'datas': encoded_string,
+        'res_model': 'helpdesk.ticket',
+        'res_id': ticket_id,
+    }]
+)
                         }]
                     )
                     logging.info(f"Attached file {filename} to ticket {ticket_id}")
@@ -114,3 +115,4 @@ def sms_reply():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
