@@ -26,7 +26,6 @@ def home():
 @app.route("/sms", methods=["POST"])
 def sms_reply():
     try:
-        # Get incoming message and number
         message_body = request.form.get('Body', '')
         from_number = request.form.get('From', '')
         media_count = int(request.form.get('NumMedia', 0))
@@ -49,7 +48,7 @@ def sms_reply():
         uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, {})
         models = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/object')
 
-        # Build description including media URLs (optional, good for reference)
+        # Build description including media URLs
         description = message_body
         if media_count > 0:
             description += "\n\nAttached Media URLs:"
@@ -66,15 +65,16 @@ def sms_reply():
                 'name': f'SMS from {from_number}',
                 'description': description,
                 'partner_phone': from_number,
-                'team_id': 4  # Replace with your actual Helpdesk team ID
+                'team_id': 4  # Replace with your Helpdesk team ID
             }]
         )
         logging.info(f"Created Helpdesk ticket ID: {ticket_id}")
 
-        # Download and attach media files to ticket
+        # Download and attach media
         for i in range(media_count):
             media_url = request.form.get(f'MediaUrl{i}')
             media_type = request.form.get(f'MediaContentType{i}', 'application/octet-stream')
+
             if media_url:
                 media_response = requests.get(
                     media_url,
@@ -82,29 +82,27 @@ def sms_reply():
                 )
                 if media_response.status_code == 200:
                     image_data = media_response.content
-                    encoded_data = base64.b64encode(image_data).decode('utf-8')
+                    encoded_string = base64.b64encode(image_data).decode('utf-8')
                     filename = f'sms_attachment_{i}.{media_type.split("/")[-1]}'
 
                     attachment_id = models.execute_kw(
-    db, uid, password,
-    'ir.attachment', 'create',
-    [{
-        'name': filename,  # 
-        'type': 'binary',
-        'datas': encoded_string,
-        'res_model': 'helpdesk.ticket',
-        'res_id': ticket_id,
-    }]
-)
+                        ODOO_DB, uid, ODOO_PASSWORD,
+                        'ir.attachment', 'create',
+                        [{
+                            'name': filename,
+                            'type': 'binary',
+                            'datas': encoded_string,
+                            'res_model': 'helpdesk.ticket',
+                            'res_id': ticket_id,
                         }]
                     )
                     logging.info(f"Attached file {filename} to ticket {ticket_id}")
                 else:
                     logging.warning(f"Failed to download media from {media_url} with status {media_response.status_code}")
 
-        # Twilio response
+        # Twilio confirmation
         resp = MessagingResponse()
-        resp.message("Thanks! We've opened a support ticket with your message and image.")
+        resp.message("Thanks! We've opened a support ticket with your message and attachment(s).")
 
     except Exception as e:
         logging.exception("Error processing incoming SMS.")
@@ -115,5 +113,3 @@ def sms_reply():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-
