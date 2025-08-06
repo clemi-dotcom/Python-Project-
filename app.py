@@ -65,37 +65,31 @@ def sms_reply():
         logging.info(f"Created Helpdesk ticket ID: {ticket_id}")
 
         # Download and attach media
-        for i in range(media_count):
-            media_url = request.form.get(f'MediaUrl{i}')
-            media_type = request.form.get(f'MediaContentType{i}', 'application/octet-stream')
+       media_response = requests.get(media_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
+       if media_response.status_code == 200:
+           image_data = media_response.content
+           logging.info(f"Downloaded media size: {len(image_data)} bytes")
+           if len(image_data) == 0:
+               logging.warning(f"Downloaded media is empty for URL: {media_url}")
+    encoded_string = base64.b64encode(image_data).decode('utf-8')
+    filename = f'sms_attachment_{i}.{media_type.split("/")[-1]}'
 
-            if media_url:
-                media_response = requests.get(
-                    media_url,
-                    auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-                )
-                if media_response.status_code == 200:
-                    image_data = media_response.content
-                    encoded_string = base64.b64encode(image_data).decode('utf-8')
-                    file_extension = media_type.split("/")[-1]
-                    filename = f'sms_attachment_{i}.{file_extension}'
+    attachment_id = models.execute_kw(
+        ODOO_DB, uid, ODOO_PASSWORD,
+        'ir.attachment', 'create',
+        [{
+            'name': filename,
+            'type': 'binary',
+            'datas': encoded_string,
+            'res_model': 'helpdesk.ticket',
+            'res_id': ticket_id,
+            'mimetype': media_type
+        }]
+    )
+    logging.info(f"Created attachment {attachment_id} for ticket {ticket_id}")
+else:
+    logging.warning(f"Failed to download media from {media_url} with status {media_response.status_code}")
 
-                    attachment_id = models.execute_kw(
-                        ODOO_DB, uid, ODOO_PASSWORD,
-                        'ir.attachment', 'create',
-                        [{
-                            'name': filename,
-                            'type': 'binary',
-                            'datas': encoded_string,
-                            'res_model': 'helpdesk.ticket',
-                            'res_id': ticket_id,
-                            'mimetype': media_type
-                        }]
-                    )
-                    logging.info(f"Attached file {filename} to ticket {ticket_id}")
-                else:
-                    logging.warning(f"Failed to download media from {media_url} — Status Code: {media_response.status_code}")
-                    # After attachments are created, append image tags to description
                 for i in range(media_count):
                     attachment_id = ... # as above
                     filename = f'sms_attachment_{i}.{file_extension}'
@@ -124,4 +118,5 @@ def sms_reply():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
