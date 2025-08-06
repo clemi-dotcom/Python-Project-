@@ -48,8 +48,8 @@ def sms_reply():
             description += "\n\nAttached Media URLs:"
             for i in range(media_count):
                 media_url = request.form.get(f'MediaUrl{i}')
-                content_type = request.form.get(f'MediaContentType{i}')
-                description += f"\n- {media_url} ({content_type})"
+                media_type = request.form.get(f'MediaContentType{i}')
+                description += f"\n- {media_url} ({media_type})"
 
         # Create Helpdesk ticket
         ticket_id = models.execute_kw(
@@ -65,45 +65,47 @@ def sms_reply():
         logging.info(f"Created Helpdesk ticket ID: {ticket_id}")
 
         # Download and attach media
-       media_response = requests.get(media_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
-       if media_response.status_code == 200:
-           image_data = media_response.content
-           logging.info(f"Downloaded media size: {len(image_data)} bytes")
-           if len(image_data) == 0:
-               logging.warning(f"Downloaded media is empty for URL: {media_url}")
-    encoded_string = base64.b64encode(image_data).decode('utf-8')
-    filename = f'sms_attachment_{i}.{media_type.split("/")[-1]}'
-
-    attachment_id = models.execute_kw(
-        ODOO_DB, uid, ODOO_PASSWORD,
-        'ir.attachment', 'create',
-        [{
-            'name': filename,
-            'type': 'binary',
-            'datas': encoded_string,
-            'res_model': 'helpdesk.ticket',
-            'res_id': ticket_id,
-            'mimetype': media_type
-        }]
-    )
-    logging.info(f"Created attachment {attachment_id} for ticket {ticket_id}")
-else:
-    logging.warning(f"Failed to download media from {media_url} with status {media_response.status_code}")
-
-                for i in range(media_count):
-                    attachment_id = ... # as above
+        if media_count > 0:
+            for i in range(media_count):
+                media_url = request.form.get(f'MediaUrl{i}')
+                media_type = request.form.get(f'MediaContentType{i}')
+                media_response = requests.get(media_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
+                if media_response.status_code == 200:
+                    image_data = media_response.content
+                    logging.info(f"Downloaded media size: {len(image_data)} bytes")
+                    if len(image_data) == 0:
+                        logging.warning(f"Downloaded media is empty for URL: {media_url}")
+                        continue
+                    encoded_string = base64.b64encode(image_data).decode('utf-8')
+                    file_extension = media_type.split("/")[-1]
                     filename = f'sms_attachment_{i}.{file_extension}'
+
+                    attachment_id = models.execute_kw(
+                        ODOO_DB, uid, ODOO_PASSWORD,
+                        'ir.attachment', 'create',
+                        [{
+                            'name': filename,
+                            'type': 'binary',
+                            'datas': encoded_string,
+                            'res_model': 'helpdesk.ticket',
+                            'res_id': ticket_id,
+                            'mimetype': media_type
+                        }]
+                    )
+                    logging.info(f"Created attachment {attachment_id} for ticket {ticket_id}")
 
                     # Add img tag referencing the attachment
                     image_url = f"{ODOO_URL}/web/image/{attachment_id}?filename={filename}"
                     description += f'\n\n<img src="{image_url}" alt="{filename}" style="max-width: 300px;">'
 
-                    # Then update the ticket description with the new content:
+                    # Update the ticket description with new content
                     models.execute_kw(
-                    ODOO_DB, uid, ODOO_PASSWORD,
-                    'helpdesk.ticket', 'write',
-                    [[ticket_id], {'description': description}]
+                        ODOO_DB, uid, ODOO_PASSWORD,
+                        'helpdesk.ticket', 'write',
+                        [[ticket_id], {'description': description}]
                     )
+                else:
+                    logging.warning(f"Failed to download media from {media_url} with status {media_response.status_code}")
 
         # Respond to Twilio
         resp = MessagingResponse()
@@ -118,5 +120,3 @@ else:
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-
