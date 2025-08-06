@@ -89,7 +89,7 @@ def sms_reply():
     db, uid, password,
     'ir.attachment', 'create',
     [{
-        'name': filename,  # ✔️ Correct field
+        'name': filename,  # 
         'type': 'binary',
         'datas': encoded_string,
         'res_model': 'helpdesk.ticket',
@@ -115,4 +115,5 @@ def sms_reply():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
