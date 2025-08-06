@@ -14,9 +14,9 @@ ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
 def index():
     return "Hello! Your SMS service is running."
 
-@app.route("/sms", methods=["GET", "POST"])
+@app.route("/sms", methods=["POST"])
 def sms_reply():
-    if request.method == "GET":
+    if request.method == "Post":
         return "This endpoint is for POST requests from Twilio. Nothing to see here."
 
     # Get the incoming message
@@ -34,3 +34,4 @@ def sms_reply():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
