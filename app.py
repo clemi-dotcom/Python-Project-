@@ -42,8 +42,8 @@ def sms_reply():
         uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, {})
         models = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/object')
 
-        # Start ticket description with the message body only
-        description = message_body
+        # Build initial description with message only
+        description = message_body.replace('\n', '<br>')  # Support for line breaks in HTML
 
         # Create Helpdesk ticket
         ticket_id = models.execute_kw(
@@ -53,26 +53,25 @@ def sms_reply():
                 'name': f'SMS from {from_number}',
                 'description': description,
                 'partner_phone': from_number,
-                'team_id': 4  # replace with your actual helpdesk team ID
+                'team_id': 4  # Replace with your actual helpdesk team ID
             }]
         )
         logging.info(f"Created Helpdesk ticket ID: {ticket_id}")
 
-        # Download and attach media (and add embedded image if applicable)
+        # Download and attach media
         if media_count > 0:
             for i in range(media_count):
                 media_url = request.form.get(f'MediaUrl{i}')
                 media_type = request.form.get(f'MediaContentType{i}')
                 media_response = requests.get(media_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
-                
+
                 if media_response.status_code == 200:
                     image_data = media_response.content
                     logging.info(f"Downloaded media size: {len(image_data)} bytes")
-                    
                     if len(image_data) == 0:
                         logging.warning(f"Downloaded media is empty for URL: {media_url}")
                         continue
-                    
+
                     encoded_string = base64.b64encode(image_data).decode('utf-8')
                     file_extension = media_type.split("/")[-1]
                     filename = f'sms_attachment_{i}.{file_extension}'
@@ -92,11 +91,11 @@ def sms_reply():
                     )
                     logging.info(f"Created attachment {attachment_id} for ticket {ticket_id}")
 
-                    # Add <img> tag referencing the uploaded attachment
+                    # Add <img> tag referencing the attachment, separated from message body
                     image_url = f"{ODOO_URL}/web/image/{attachment_id}?filename={filename}"
-                    description += f'\n\n<img src="{image_url}" alt="{filename}" style="max-width: 300px;">'
+                    description += f'<br><br><img src="{image_url}" alt="{filename}" style="max-width: 300px;"><br>'
 
-                    # Update ticket description to include the embedded image
+                    # Update the ticket with new description (with image included)
                     models.execute_kw(
                         ODOO_DB, uid, ODOO_PASSWORD,
                         'helpdesk.ticket', 'write',
