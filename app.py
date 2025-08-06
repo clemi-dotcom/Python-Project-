@@ -17,7 +17,6 @@ def home():
 
 @app.route("/sms", methods=["POST"])
 def sms_reply():
-    # Get incoming message and number
     message_body = request.form['Body']
     from_number = request.form['From']
 
@@ -26,7 +25,6 @@ def sms_reply():
     uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, {})
     models = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/object')
 
-    # Create Helpdesk Ticket
     ticket_id = models.execute_kw(
         ODOO_DB, uid, ODOO_PASSWORD,
         'helpdesk.ticket', 'create',
@@ -34,24 +32,14 @@ def sms_reply():
             'name': f'SMS from {from_number}',
             'description': message_body,
             'partner_phone': from_number,
-            'team_id': 4  # Replace with your actual Helpdesk team ID
+            'team_id': 4  # Change this as needed
         }]
     )
 
-    # Send confirmation back to user
+    # Send confirmation
     resp = MessagingResponse()
     resp.message("Thanks! We've received your message and opened a support ticket.")
-
     return str(resp)
 
 if __name__ == "__main__":
     app.run(debug=True)
-    # Send confirmation back to user
-    resp = MessagingResponse()
-    resp.message("Thanks! We've received your message and opened a support ticket.")
-
-    return str(resp)
-
-if __name__ == "__main__":
-
-
