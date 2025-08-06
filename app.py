@@ -94,4 +94,17 @@ def sms_reply():
                     )
                     logging.info(f"Attached file {filename} to ticket {ticket_id}")
                 else:
-                    logging.warning(f"Failed to download media from {media
+                    logging.warning(f"Failed to download media from {media_url} — Status Code: {media_response.status_code}")
+        # Respond to Twilio
+        resp = MessagingResponse()
+        resp.message("Thanks! We've opened a support ticket with your message and attachment(s).")
+
+    except Exception as e:
+        logging.exception("Error processing incoming SMS.")
+        resp = MessagingResponse()
+        resp.message("Something went wrong while processing your message.")
+
+    return str(resp)
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
