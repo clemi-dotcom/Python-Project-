@@ -1,44 +1,35 @@
-from flask import Flask, request
+from flask import Flask, request, redirect
 from twilio.twiml.messaging_response import MessagingResponse
-import xmlrpc.client
 import os
 
 app = Flask(__name__)
 
-# Get Odoo credentials from environment variables
+# Load environment variables (optional)
 ODOO_URL = os.getenv("ODOO_URL")
 ODOO_DB = os.getenv("ODOO_DB")
 ODOO_USERNAME = os.getenv("ODOO_USERNAME")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
 
 @app.route("/")
-def home():
-    return "Flask app is running!"
+def index():
+    return "Hello! Your SMS service is running."
 
-@app.route("/sms", methods=["POST"])
+@app.route("/sms", methods=["GET", "POST"])
 def sms_reply():
-    message_body = request.form['Body']
-    from_number = request.form['From']
+    if request.method == "GET":
+        return "This endpoint is for POST requests from Twilio. Nothing to see here."
 
-    # Connect to Odoo
-    common = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/common')
-    uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, {})
-    models = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/object')
+    # Get the incoming message
+    incoming_msg = request.form.get("Body")
+    sender = request.form.get("From")
 
-    ticket_id = models.execute_kw(
-        ODOO_DB, uid, ODOO_PASSWORD,
-        'helpdesk.ticket', 'create',
-        [{
-            'name': f'SMS from {from_number}',
-            'description': message_body,
-            'partner_phone': from_number,
-            'team_id': 4  # Change this as needed
-        }]
-    )
-
-    # Send confirmation
+    # Create a Twilio response
     resp = MessagingResponse()
-    resp.message("Thanks! We've received your message and opened a support ticket.")
+    msg = resp.message()
+
+    # Example logic: Echo back the incoming message
+    msg.body(f"Hello! You said: {incoming_msg}")
+
     return str(resp)
 
 if __name__ == "__main__":
