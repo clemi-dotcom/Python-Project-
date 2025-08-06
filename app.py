@@ -9,13 +9,13 @@ import base64
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Get Odoo credentials from environment variables
+# Odoo credentials from environment
 ODOO_URL = os.getenv("ODOO_URL")
 ODOO_DB = os.getenv("ODOO_DB")
 ODOO_USERNAME = os.getenv("ODOO_USERNAME")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
 
-# Get Twilio credentials from environment variables
+# Twilio credentials from environment
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
@@ -31,14 +31,8 @@ def sms_reply():
         media_count = int(request.form.get('NumMedia', 0))
         logging.info(f"Received SMS from {from_number}: {message_body} with {media_count} media files")
 
-        if not all([ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD]):
-            logging.error("Missing one or more Odoo environment variables.")
-            resp = MessagingResponse()
-            resp.message("Server configuration error. Please try again later.")
-            return str(resp)
-
-        if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN]):
-            logging.error("Missing Twilio credentials in environment variables.")
+        if not all([ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN]):
+            logging.error("Missing one or more required environment variables.")
             resp = MessagingResponse()
             resp.message("Server configuration error. Please try again later.")
             return str(resp)
@@ -57,7 +51,7 @@ def sms_reply():
                 content_type = request.form.get(f'MediaContentType{i}')
                 description += f"\n- {media_url} ({content_type})"
 
-        # Create Helpdesk Ticket
+        # Create Helpdesk ticket
         ticket_id = models.execute_kw(
             ODOO_DB, uid, ODOO_PASSWORD,
             'helpdesk.ticket', 'create',
@@ -65,7 +59,7 @@ def sms_reply():
                 'name': f'SMS from {from_number}',
                 'description': description,
                 'partner_phone': from_number,
-                'team_id': 4  # Update as needed
+                'team_id': 4  # replace with your actual helpdesk team ID
             }]
         )
         logging.info(f"Created Helpdesk ticket ID: {ticket_id}")
@@ -76,16 +70,15 @@ def sms_reply():
             media_type = request.form.get(f'MediaContentType{i}', 'application/octet-stream')
 
             if media_url:
-                response = requests.get(
+                media_response = requests.get(
                     media_url,
                     auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
                 )
-
-                if response.status_code == 200:
-                    image_data = response.content
-                    encoded = base64.b64encode(image_data).decode("utf-8")
-                    extension = media_type.split("/")[-1]
-                    filename = f"sms_attachment_{i}.{extension}"
+                if media_response.status_code == 200:
+                    image_data = media_response.content
+                    encoded_string = base64.b64encode(image_data).decode('utf-8')
+                    file_extension = media_type.split("/")[-1]
+                    filename = f'sms_attachment_{i}.{file_extension}'
 
                     attachment_id = models.execute_kw(
                         ODOO_DB, uid, ODOO_PASSWORD,
@@ -93,26 +86,12 @@ def sms_reply():
                         [{
                             'name': filename,
                             'type': 'binary',
-                            'datas': encoded,
+                            'datas': encoded_string,
                             'res_model': 'helpdesk.ticket',
                             'res_id': ticket_id,
-                            'mimetype': media_type,
+                            'mimetype': media_type
                         }]
                     )
                     logging.info(f"Attached file {filename} to ticket {ticket_id}")
                 else:
-                    logging.warning(f"Failed to download media from {media_url} with status code {response.status_code}")
-
-        # Twilio confirmation message
-        resp = MessagingResponse()
-        resp.message("Thanks! We've opened a support ticket with your message and any attachment(s).")
-
-    except Exception as e:
-        logging.exception("Error processing incoming SMS.")
-        resp = MessagingResponse()
-        resp.message("Something went wrong while processing your message.")
-
-    return str(resp)
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+                    logging.warning(f"Failed to download media from {media
