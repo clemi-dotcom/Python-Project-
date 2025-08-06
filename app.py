@@ -15,6 +15,10 @@ ODOO_DB = os.getenv("ODOO_DB")
 ODOO_USERNAME = os.getenv("ODOO_USERNAME")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
 
+# Get Twilio credentials from environment variables
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+
 @app.route("/")
 def home():
     return "Flask app is running!"
@@ -30,6 +34,12 @@ def sms_reply():
 
         if not all([ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD]):
             logging.error("Missing one or more Odoo environment variables.")
+            resp = MessagingResponse()
+            resp.message("Server configuration error. Please try again later.")
+            return str(resp)
+
+        if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN]):
+            logging.error("Missing Twilio credentials in environment variables.")
             resp = MessagingResponse()
             resp.message("Server configuration error. Please try again later.")
             return str(resp)
@@ -66,7 +76,10 @@ def sms_reply():
             media_url = request.form.get(f'MediaUrl{i}')
             media_type = request.form.get(f'MediaContentType{i}', 'application/octet-stream')
             if media_url:
-                media_response = requests.get(media_url)
+                media_response = requests.get(
+                    media_url,
+                    auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+                )
                 if media_response.status_code == 200:
                     image_data = media_response.content
                     encoded_data = base64.b64encode(image_data).decode('utf-8')
@@ -86,7 +99,7 @@ def sms_reply():
                     )
                     logging.info(f"Attached file {filename} to ticket {ticket_id}")
                 else:
-                    logging.warning(f"Failed to download media from {media_url}")
+                    logging.warning(f"Failed to download media from {media_url} with status {media_response.status_code}")
 
         # Twilio response
         resp = MessagingResponse()
@@ -100,4 +113,4 @@ def sms_reply():
     return str(resp)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
